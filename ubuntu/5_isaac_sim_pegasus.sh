@@ -39,6 +39,7 @@ if ! grep -q "export ISAACSIM_PATH" "$ZSHRC"; then
 export ISAACSIM_PATH="$HOME/isaacsim"
 alias ISAACSIM_PYTHON="$ISAACSIM_PATH/python.sh"
 alias ISAACSIM="$ISAACSIM_PATH/isaac-sim.sh"
+
 EOF
   echo "-- Added ISAACSIM_PATH and aliases to $ZSHRC"
 else
@@ -49,7 +50,8 @@ fi
 export ISAACSIM_PATH="$HOME/isaacsim"
 alias ISAACSIM_PYTHON="$ISAACSIM_PATH/python.sh"
 alias ISAACSIM="$ISAACSIM_PATH/isaac-sim.sh"
-
+export ISAACSIM_PYTHON="$ISAACSIM_PATH/python.sh"
+export ISAACSIM="$ISAACSIM_PATH/isaac-sim.sh"
 # --- 3. Clone Pegasus Simulator repo ---
 echo "-- Cloning Pegasus Simulator repository (if not already present)"
 cd "$HOME"

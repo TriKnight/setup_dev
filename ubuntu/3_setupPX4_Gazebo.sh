@@ -11,16 +11,17 @@ sudo apt update -y && sudo apt upgrade -y
 sudo apt install -y git wget curl lsb-release gnupg python3-pip
 
 # --- Step 1: Clone PX4-Autopilot repository ---
-echo "=== Cloning PX4-Autopilot repository ==="
-if [ ! -d PX4-Autopilot ]; then
-  git clone https://github.com/PX4/PX4-Autopilot.git --recursive
-fi
+# Optional because step 5 will be install Px4 if you want to build PX4 from source
+# echo "=== Cloning PX4-Autopilot repository ==="
+# if [ ! -d PX4-Autopilot ]; then
+#   git clone https://github.com/PX4/PX4-Autopilot.git --recursive
+# fi
 
-cd PX4-Autopilot
+# cd PX4-Autopilot
 
-# --- Step 2: Run PX4 dependencies script ---
-echo "=== Installing PX4 dependencies ==="
-bash ./Tools/setup/ubuntu.sh --no-sim-tools
+# # --- Step 2: Run PX4 dependencies script ---
+# echo "=== Installing PX4 dependencies ==="
+# bash ./Tools/setup/ubuntu.sh --no-sim-tools
 
 # --- Step 3: Install Ignition Harmonic (Fortress successor) ---
 echo "=== Installing Ignition Harmonic ==="
