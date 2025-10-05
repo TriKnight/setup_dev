@@ -1,4 +1,4 @@
-# Install all dependencies for AIR Reseearch 
+# Install all dependencies for research 
 - Ubuntu 22.04.5
 - ROS Humble
 - Gazebo Ignition Harmonic
