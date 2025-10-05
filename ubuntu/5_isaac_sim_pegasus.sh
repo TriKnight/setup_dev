@@ -1,140 +1,97 @@
-#!/usr/bin/env bash
+#!/usr/bin/env zsh
 set -euo pipefail
 
-# install_ubuntu.sh
-# Calls each script inside ./ubuntu step-by-step.
-# Supports Bash and Zsh shells.
+# 5_isaac_sim_pegasus.sh
+# Install Pegasus Simulator (for Isaac Sim + PX4)
+# Requires: Isaac Sim already installed and working
+# Tested on Ubuntu 22.04 + Zsh
+# Based on Pegasus docs: https://pegasussimulator.github.io/PegasusSimulator/source/setup/installation.html
 
-# Usage:
-#   ./install_ubuntu.sh                     # interactive mode
-#   ./install_ubuntu.sh --auto              # run all steps without prompts
-#   ./install_ubuntu.sh --continue-on-error # continue even if a step fails
-#   ./install_ubuntu.sh --dir=/path/to/ubuntu  # use custom directory
+echo "=== Step 5: Install Pegasus Simulator ==="
 
-AUTO=false
-CONTINUE_ON_ERROR=false
-SCRIPTS_DIR="./ubuntu"
+# --- 1. Download & install Isaac Sim if not already done ---
+if [ ! -d "$HOME/isaacsim" ]; then
+  echo "-- Isaac Sim directory not found. Installing Isaac Sim 4.5.0..."
+  cd "$HOME"
+  mkdir -p isaacsim
+  cd isaacsim
 
-# Parse args
-for arg in "$@"; do
-  case "$arg" in
-    --auto|-a) AUTO=true ;;
-    --continue-on-error|-c) CONTINUE_ON_ERROR=true ;;
-    --dir=*) SCRIPTS_DIR="${arg#*=}" ;;
-    --help|-h)
-      echo "Usage: $0 [--auto] [--continue-on-error] [--dir=PATH]"
-      exit 0
-      ;;
-    *)
-      echo "Unknown arg: $arg"
-      echo "Usage: $0 [--auto] [--continue-on-error] [--dir=PATH]"
-      exit 1
-      ;;
-  esac
-done
+  wget "https://download.isaacsim.omniverse.nvidia.com/isaac-sim-standalone%404.5.0-rc.36%2Brelease.19112.f59b3005.gl.linux-x86_64.release.zip"
+  unzip *.zip
+  rm *.zip
 
-# Detect current shell (bash or zsh)
-if [ -n "${ZSH_VERSION:-}" ]; then
-  SHELL_CMD="zsh"
-elif [ -n "${BASH_VERSION:-}" ]; then
-  SHELL_CMD="bash"
+  ./post_install.sh || true
+  ./isaac-sim.selector.sh || true
+
+  echo "-- Isaac Sim installed at $HOME/isaacsim"
 else
-  SHELL_CMD="bash"
+  echo "-- Isaac Sim directory exists: $HOME/isaacsim (skipping download/install)"
 fi
 
-# Scripts in order
-SCRIPTS=(
-  "1_setupenv.sh"
-  "2_setupROS.sh"
-  "3_setupPX4_Gazebo.sh"
-  "4_setupPython.sh"
-  "5_isaac_sim_pegasus.sh"
-)
+# --- 2. Configure environment variables (for Pegasus) ---
+echo "-- Configuring environment variables for Pegasus (Zsh)"
 
-# Basic checks
-if [ ! -d "$SCRIPTS_DIR" ]; then
-  echo "Error: directory '$SCRIPTS_DIR' not found. Create it or pass --dir=PATH."
-  exit 2
+ZSHRC="$HOME/.zshrc"
+if ! grep -q "export ISAACSIM_PATH" "$ZSHRC"; then
+  cat >> "$ZSHRC" <<'EOF'
+
+# Pegasus / Isaac Sim environment
+export ISAACSIM_PATH="$HOME/isaacsim"
+alias ISAACSIM_PYTHON="$ISAACSIM_PATH/python.sh"
+alias ISAACSIM="$ISAACSIM_PATH/isaac-sim.sh"
+EOF
+  echo "-- Added ISAACSIM_PATH and aliases to $ZSHRC"
+else
+  echo "-- Environment entries already present in $ZSHRC"
 fi
 
-LOG_DIR="$SCRIPTS_DIR/logs"
-mkdir -p "$LOG_DIR"
+# Immediately apply in this shell
+export ISAACSIM_PATH="$HOME/isaacsim"
+alias ISAACSIM_PYTHON="$ISAACSIM_PATH/python.sh"
+alias ISAACSIM="$ISAACSIM_PATH/isaac-sim.sh"
 
-echo "-----------------------------------------"
-echo " Using shell: $SHELL_CMD"
-echo " Will run scripts from: $SCRIPTS_DIR"
-echo " Logs will be saved in: $LOG_DIR"
-echo "-----------------------------------------"
-echo
+# --- 3. Clone Pegasus Simulator repo ---
+echo "-- Cloning Pegasus Simulator repository (if not already present)"
+cd "$HOME"
+if [ ! -d PegasusSimulator ]; then
+  git clone https://github.com/PegasusSimulator/PegasusSimulator.git
+else
+  echo "-- PegasusSimulator already cloned"
+fi
 
-# Ensure scripts exist and are executable
-for s in "${SCRIPTS[@]}"; do
-  if [ ! -f "$SCRIPTS_DIR/$s" ]; then
-    echo "Error: missing script: $SCRIPTS_DIR/$s"
-    exit 3
-  fi
-  chmod +x "$SCRIPTS_DIR/$s" || true
-done
+cd PegasusSimulator
 
-run_script() {
-  local script_path="$1"
-  local logfile="$2"
+# --- 4. Install Pegasus Simulator extension (editable) ---
+echo "-- Installing Pegasus extension as editable for Isaac Sim Python"
+cd extensions
+$ISAACSIM_PYTHON -m pip install --editable pegasus.simulator
 
-  echo "-----"
-  echo "Starting: $(basename "$script_path")  -- $(date +"%Y-%m-%d %H:%M:%S")"
-  echo "Log: $logfile"
-  echo "-----"
+echo "-- Pegasus Simulator extension installed (editable mode)"
 
-  if [ "$CONTINUE_ON_ERROR" = true ]; then
-    # Continue even on errors
-    if $SHELL_CMD "$script_path" 2>&1 | tee "$logfile"; then
-      echo "Completed: $(basename "$script_path") ✅"
-      return 0
-    else
-      local rc=${PIPESTATUS[0]:-1}
-      echo "FAILED: $(basename "$script_path") ❌ (exit code: $rc). Continuing..."
-      return $rc
-    fi
-  else
-    # Stop on error
-    $SHELL_CMD "$script_path" 2>&1 | tee "$logfile"
-    echo "Completed: $(basename "$script_path") ✅"
-    return 0
-  fi
-}
+# --- 5. PX4-Autopilot installation (optional / required for GUI mode) ---
+echo "-- Installing PX4-Autopilot (for Pegasus GUI / PX4 integration)"
+cd ~
+if [ ! -d PX4-Autopilot ]; then
+  git clone https://github.com/PX4/PX4-Autopilot.git
+fi
+cd PX4-Autopilot
 
-# --- Main loop ---
-for s in "${SCRIPTS[@]}"; do
-  script_path="$SCRIPTS_DIR/$s"
-  logfile="$LOG_DIR/${s%.sh}.log"
+git fetch --tags
+git checkout v1.14.3
+git submodule update --init --recursive
 
-  if [ "$AUTO" = false ]; then
-    while true; do
-      read -r -p "Run ${s}? [Enter=run / s=skip / q=quit] " resp
-      resp_lc="$(echo "${resp:-}" | tr '[:upper:]' '[:lower:]')"
-      if [ -z "$resp_lc" ]; then
-        run_script "$script_path" "$logfile"
-        break
-      elif [[ "$resp_lc" == "s" || "$resp_lc" == "skip" ]]; then
-        echo "Skipping $s"
-        break
-      elif [[ "$resp_lc" == "q" || "$resp_lc" == "quit" ]]; then
-        echo "Aborting as requested."
-        exit 0
-      else
-        echo "Type Enter to run, 's' to skip, or 'q' to quit."
-      fi
-    done
-  else
-    run_script "$script_path" "$logfile"
-  fi
-  echo
-done
+sudo apt install -y git make cmake python3-pip
+pip install --upgrade pip
+pip install kconfiglib jinja2 empy jsonschema pyros-genmsg packaging toml numpy future
 
-echo "-----------------------------------------"
-echo "✅ All steps processed."
-echo "Logs saved in: $LOG_DIR"
-echo "Inspect with:"
-echo "  ls -1 $LOG_DIR"
-echo "  tail -n +1 $LOG_DIR/*.log"
-echo "-----------------------------------------"
+make px4_sitl_default none || true
+
+echo "-- PX4-Autopilot set up for Pegasus (v1.14.3)"
+
+echo "=== Pegasus Simulator installation done! ==="
+echo "👉 To use Pegasus:"
+echo "  1. Launch Isaac Sim"
+echo "  2. Open 'Window → Extensions'"
+echo "  3. Add path: \$HOME/PegasusSimulator/extensions"
+echo "  4. Enable the Pegasus extension"
+echo "Then restart Isaac Sim."
